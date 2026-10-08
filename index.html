@@ -1,0 +1,1198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Granny · 移动版</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { overflow: hidden; font-family: 'Courier New', monospace; background: #000; touch-action: none; }
+        canvas { display: block; }
+
+        #top-bar {
+            position: absolute; top: 0; left: 0; right: 0;
+            display: flex; justify-content: space-between;
+            padding: 10px 12px; pointer-events: none; z-index: 100; gap: 8px;
+        }
+        .hud-item {
+            background: rgba(10,10,18,0.85); border: 1px solid #5a3e2b;
+            border-radius: 8px; padding: 6px 12px; color: #d0d0d0;
+            font-size: 12px; letter-spacing: 0.5px; white-space: nowrap;
+        }
+        #key-hint { color: #e0c9a0; border-color: #b8860b; font-weight: bold; }
+        #key-hint.found { color: #ffd966; border-color: #ffaa00; box-shadow: 0 0 16px rgba(255,170,0,0.6); }
+
+        .crosshair {
+            position: absolute; top: 50%; left: 50%;
+            width: 6px; height: 6px; background: rgba(255,255,255,0.8);
+            border-radius: 50%; transform: translate(-50%,-50%);
+            box-shadow: 0 0 8px rgba(255,0,0,0.9);
+            pointer-events: none; z-index: 50;
+        }
+
+        #warning {
+            position: absolute; top: 40%; left: 50%;
+            transform: translate(-50%,-50%);
+            color: #ff4d4d; background: rgba(0,0,0,0.85);
+            padding: 14px 22px; font-size: 18px;
+            border-radius: 10px; border: 2px solid red;
+            display: none; z-index: 150; text-align: center;
+            font-weight: bold; text-shadow: 0 0 10px red;
+        }
+        #win-message {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%,-50%);
+            color: #ffd966; background: rgba(15,15,15,0.95);
+            padding: 24px 32px; font-size: 26px;
+            border-radius: 20px; border: 3px solid #b8860b;
+            text-align: center; display: none; z-index: 200;
+            font-weight: bold; letter-spacing: 3px;
+        }
+        #win-message small { display: block; font-size: 14px; color: #bbb; margin-top: 12px; letter-spacing: 1px; font-weight: normal; }
+
+        #start-screen {
+            position: absolute; inset: 0;
+            background: rgba(0,0,0,0.94);
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+            z-index: 300; color: #d0d0d0; text-align: center; padding: 20px;
+        }
+        #start-screen h1 {
+            font-size: 42px; color: #b8860b;
+            text-shadow: 0 0 30px #ff0000, 0 0 60px #8a0000;
+            letter-spacing: 10px; margin-bottom: 10px;
+        }
+        #start-screen p {
+            font-size: 14px; color: #aaa; margin: 16px 0;
+            max-width: 340px; line-height: 1.7;
+            border-left: 3px solid #b8860b; padding-left: 14px; text-align: left;
+        }
+        #start-screen button {
+            background: #1a1a1a; border: 2px solid #b8860b;
+            color: #ffd966; padding: 14px 40px; font-size: 20px;
+            font-family: 'Courier New', monospace; letter-spacing: 4px;
+            border-radius: 8px; margin-top: 16px; font-weight: bold;
+        }
+        #start-screen button:active { background: #2a1a0a; transform: scale(0.97); }
+
+        #joystick {
+            position: absolute; left: 30px; bottom: 40px;
+            width: 130px; height: 130px; border-radius: 50%;
+            background: rgba(255,255,255,0.08);
+            border: 2px solid rgba(255,255,255,0.25);
+            z-index: 90;
+        }
+        #joystick-knob {
+            position: absolute; top: 50%; left: 50%;
+            width: 54px; height: 54px; border-radius: 50%;
+            background: rgba(255,200,100,0.5);
+            border: 2px solid rgba(255,200,100,0.9);
+            transform: translate(-50%,-50%);
+            box-shadow: 0 0 16px rgba(255,170,0,0.6);
+            pointer-events: none;
+        }
+
+        #action-btn {
+            position: absolute; right: 30px; bottom: 55px;
+            width: 100px; height: 100px; border-radius: 50%;
+            background: rgba(184,134,11,0.3);
+            border: 3px solid #b8860b;
+            color: #ffd966; font-size: 28px;
+            display: flex; align-items: center; justify-content: center;
+            z-index: 90; font-weight: bold;
+            box-shadow: 0 0 20px rgba(255,170,0,0.4);
+            user-select: none;
+        }
+        #action-btn:active { background: rgba(255,170,0,0.5); transform: scale(0.95); }
+
+        /* 跳跃按钮 */
+        #jump-btn {
+            position: absolute; right: 145px; bottom: 55px;
+            width: 90px; height: 90px; border-radius: 50%;
+            background: rgba(80,140,180,0.3);
+            border: 3px solid #4a90b8;
+            color: #a8d8f0; font-size: 26px;
+            display: flex; align-items: center; justify-content: center;
+            z-index: 90; font-weight: bold;
+            box-shadow: 0 0 20px rgba(80,160,220,0.4);
+            user-select: none;
+        }
+        #jump-btn:active { background: rgba(100,180,220,0.5); transform: scale(0.95); }
+
+        #granny-growl {
+            position: absolute; bottom: 200px; left: 50%;
+            transform: translateX(-50%);
+            color: #ff4d4d; font-size: 16px;
+            background: rgba(0,0,0,0.8); padding: 8px 18px;
+            border-radius: 30px; border: 2px solid #b00;
+            display: none; z-index: 120; letter-spacing: 1px;
+        }
+
+        #view-hint {
+            position: absolute; right: 30px; top: 50%;
+            color: rgba(255,255,255,0.4); font-size: 11px;
+            z-index: 70; pointer-events: none; text-align: right;
+            transform: translateY(-50%);
+        }
+
+        #mute-btn {
+            position: absolute; top: 10px; right: 12px;
+            width: 34px; height: 34px; border-radius: 50%;
+            background: rgba(10,10,18,0.85);
+            border: 1px solid #5a3e2b;
+            color: #d0d0d0; font-size: 16px;
+            display: flex; align-items: center; justify-content: center;
+            z-index: 110; user-select: none;
+        }
+        #mute-btn.muted { color: #666; border-color: #333; }
+    </style>
+</head>
+<body>
+    <div id="start-screen">
+        <h1>GRANNY</h1>
+        <p>
+            🔑 找到金钥匙，去大门逃生。<br>
+            👵 别让奶奶抓住你。<br>
+            📱 <b>左手摇杆移动，右手滑动看方向</b>。<br>
+            🦘 点击蓝色按钮跳跃。<br>
+            🚪 靠近门或钥匙，点右下角按钮。
+        </p>
+        <button id="start-btn">开始逃生</button>
+    </div>
+
+    <div id="top-bar">
+        <div class="hud-item" id="key-hint">🔑 未找到钥匙</div>
+        <div class="hud-item" id="distance-hint">🚪 大门: 远</div>
+    </div>
+
+    <div id="mute-btn">🔊</div>
+
+    <div class="crosshair"></div>
+    <div id="warning">⚠️ 奶奶听到你了 ⚠️</div>
+    <div id="granny-growl">👵 奶奶在靠近...</div>
+    <div id="win-message">
+        🎉 你逃出去了！ 🎉
+        <small>正在返回主界面...</small>
+    </div>
+
+    <div id="joystick"><div id="joystick-knob"></div></div>
+    <div id="jump-btn">🦘</div>
+    <div id="action-btn">🔑</div>
+    <div id="view-hint">滑动看方向 →</div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.128.0/build/three.module.js"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        // ============================================
+        // 音频引擎
+        // ============================================
+        const AudioEngine = (() => {
+            let ctx = null;
+            let masterGain = null;
+            let ambientGain = null;
+            let footstepTimer = 0;
+            let muted = false;
+
+            function init() {
+                if (ctx) return;
+                const AC = window.AudioContext || window.webkitAudioContext;
+                ctx = new AC();
+                masterGain = ctx.createGain();
+                masterGain.gain.value = 0.6;
+                masterGain.connect(ctx.destination);
+
+                ambientGain = ctx.createGain();
+                ambientGain.gain.value = 0.0;
+                ambientGain.connect(masterGain);
+                startAmbient();
+            }
+
+            function resume() {
+                if (ctx && ctx.state === 'suspended') ctx.resume();
+            }
+
+            function startAmbient() {
+                const osc1 = ctx.createOscillator();
+                osc1.type = 'sine';
+                osc1.frequency.value = 42;
+                const g1 = ctx.createGain();
+                g1.gain.value = 0.25;
+                osc1.connect(g1).connect(ambientGain);
+                osc1.start();
+
+                const osc2 = ctx.createOscillator();
+                osc2.type = 'sine';
+                osc2.frequency.value = 55;
+                const g2 = ctx.createGain();
+                g2.gain.value = 0.15;
+                osc2.connect(g2).connect(ambientGain);
+                osc2.start();
+
+                const bufferSize = 2 * ctx.sampleRate;
+                const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+                const data = noiseBuffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+                const noise = ctx.createBufferSource();
+                noise.buffer = noiseBuffer;
+                noise.loop = true;
+                const noiseFilter = ctx.createBiquadFilter();
+                noiseFilter.type = 'lowpass';
+                noiseFilter.frequency.value = 350;
+                const noiseGain = ctx.createGain();
+                noiseGain.gain.value = 0.08;
+                noise.connect(noiseFilter).connect(noiseGain).connect(ambientGain);
+                noise.start();
+
+                const lfo = ctx.createOscillator();
+                lfo.frequency.value = 0.08;
+                const lfoGain = ctx.createGain();
+                lfoGain.gain.value = 0.05;
+                lfo.connect(lfoGain).connect(noiseGain.gain);
+                lfo.start();
+            }
+
+            function fadeAmbient(target, duration = 1.5) {
+                if (!ctx) return;
+                const t = ctx.currentTime;
+                ambientGain.gain.cancelScheduledValues(t);
+                ambientGain.gain.setValueAtTime(ambientGain.gain.value, t);
+                ambientGain.gain.linearRampToValueAtTime(target, t + duration);
+            }
+
+            function footstep() {
+                if (!ctx || muted) return;
+                const t = ctx.currentTime;
+                const bufferSize = Math.floor(ctx.sampleRate * 0.08);
+                const buf = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+                const d = buf.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
+                const src = ctx.createBufferSource();
+                src.buffer = buf;
+                const filter = ctx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.value = 200 + Math.random() * 150;
+                const g = ctx.createGain();
+                g.gain.setValueAtTime(0.35, t);
+                g.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+                src.connect(filter).connect(g).connect(masterGain);
+                src.start(t);
+                src.stop(t + 0.12);
+            }
+
+            function jump() {
+                if (!ctx || muted) return;
+                const t = ctx.currentTime;
+                const osc = ctx.createOscillator();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(300, t);
+                osc.frequency.linearRampToValueAtTime(600, t + 0.15);
+                const g = ctx.createGain();
+                g.gain.setValueAtTime(0.15, t);
+                g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+                osc.connect(g).connect(masterGain);
+                osc.start(t);
+                osc.stop(t + 0.22);
+            }
+
+            function land() {
+                if (!ctx || muted) return;
+                const t = ctx.currentTime;
+                const bufferSize = Math.floor(ctx.sampleRate * 0.1);
+                const buf = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+                const d = buf.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
+                const src = ctx.createBufferSource();
+                src.buffer = buf;
+                const filter = ctx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.value = 150;
+                const g = ctx.createGain();
+                g.gain.setValueAtTime(0.5, t);
+                g.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+                src.connect(filter).connect(g).connect(masterGain);
+                src.start(t);
+                src.stop(t + 0.18);
+            }
+
+            function keyPickup() {
+                if (!ctx || muted) return;
+                const t = ctx.currentTime;
+                [880, 1174, 1568, 2093].forEach((freq, i) => {
+                    const osc = ctx.createOscillator();
+                    osc.type = 'triangle';
+                    osc.frequency.value = freq;
+                    const g = ctx.createGain();
+                    const start = t + i * 0.07;
+                    g.gain.setValueAtTime(0, start);
+                    g.gain.linearRampToValueAtTime(0.25, start + 0.01);
+                    g.gain.exponentialRampToValueAtTime(0.001, start + 0.35);
+                    osc.connect(g).connect(masterGain);
+                    osc.start(start);
+                    osc.stop(start + 0.4);
+                });
+            }
+
+            function grannyGrowl() {
+                if (!ctx || muted) return;
+                const t = ctx.currentTime;
+                const osc = ctx.createOscillator();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(85, t);
+                osc.frequency.linearRampToValueAtTime(55, t + 0.6);
+                const dist = ctx.createWaveShaper();
+                const curve = new Float32Array(256);
+                for (let i = 0; i < 256; i++) {
+                    const x = (i / 128) - 1;
+                    curve[i] = Math.tanh(x * 3);
+                }
+                dist.curve = curve;
+                const filter = ctx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.value = 400;
+                const g = ctx.createGain();
+                g.gain.setValueAtTime(0.35, t);
+                g.gain.exponentialRampToValueAtTime(0.001, t + 0.7);
+                osc.connect(dist).connect(filter).connect(g).connect(masterGain);
+                osc.start(t);
+                osc.stop(t + 0.75);
+            }
+
+            function caught() {
+                if (!ctx || muted) return;
+                const t = ctx.currentTime;
+                const osc = ctx.createOscillator();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(400, t);
+                osc.frequency.exponentialRampToValueAtTime(40, t + 1.2);
+                const g = ctx.createGain();
+                g.gain.setValueAtTime(0.5, t);
+                g.gain.exponentialRampToValueAtTime(0.001, t + 1.3);
+                osc.connect(g).connect(masterGain);
+                osc.start(t);
+                osc.stop(t + 1.4);
+            }
+
+            function win() {
+                if (!ctx || muted) return;
+                const t = ctx.currentTime;
+                [523, 659, 784, 1047].forEach((freq, i) => {
+                    const osc = ctx.createOscillator();
+                    osc.type = 'sine';
+                    osc.frequency.value = freq;
+                    const g = ctx.createGain();
+                    g.gain.setValueAtTime(0, t);
+                    g.gain.linearRampToValueAtTime(0.25, t + 0.05);
+                    g.gain.exponentialRampToValueAtTime(0.001, t + 1.5);
+                    osc.connect(g).connect(masterGain);
+                    osc.start(t);
+                    osc.stop(t + 1.6);
+                });
+            }
+
+            function fail() {
+                if (!ctx || muted) return;
+                const t = ctx.currentTime;
+                const osc = ctx.createOscillator();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(200, t);
+                osc.frequency.linearRampToValueAtTime(120, t + 0.2);
+                const g = ctx.createGain();
+                g.gain.setValueAtTime(0.2, t);
+                g.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+                osc.connect(g).connect(masterGain);
+                osc.start(t);
+                osc.stop(t + 0.3);
+            }
+
+            function tryFootstep(delta, isMoving) {
+                if (!isMoving) { footstepTimer = 0; return; }
+                footstepTimer -= delta;
+                if (footstepTimer <= 0) {
+                    footstep();
+                    footstepTimer = 0.45;
+                }
+            }
+
+            function toggleMute() {
+                muted = !muted;
+                if (masterGain) masterGain.gain.value = muted ? 0 : 0.6;
+                return muted;
+            }
+
+            function reset() {
+                footstepTimer = 0;
+            }
+
+            return {
+                init, resume, fadeAmbient,
+                footstep, jump, land, keyPickup, grannyGrowl, caught, win, fail,
+                tryFootstep, toggleMute, reset,
+                get muted() { return muted; },
+                get initialized() { return ctx !== null; }
+            };
+        })();
+
+        // ============ 场景 ============
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0a0a12);
+        scene.fog = new THREE.FogExp2(0x0a0a12, 0.025);
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 1.7, 10);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        // ============ 灯光 ============
+        scene.add(new THREE.AmbientLight(0x404060));
+        const mainLight = new THREE.PointLight(0xffaa66, 0.7, 30);
+        mainLight.position.set(2, 5, 2);
+        mainLight.castShadow = true;
+        mainLight.shadow.mapSize.width = 1024;
+        mainLight.shadow.mapSize.height = 1024;
+        scene.add(mainLight);
+        const fillLight = new THREE.PointLight(0x4466aa, 0.4, 30);
+        fillLight.position.set(-6, 4, -6);
+        scene.add(fillLight);
+        const flickerLight = new THREE.PointLight(0xaa3333, 0.5, 20);
+        flickerLight.position.set(-2, 2.5, -4);
+        scene.add(flickerLight);
+
+        // ============ 材质 ============
+        const wallMat = new THREE.MeshStandardMaterial({ color: 0x3a2e28, roughness: 0.9, emissive: 0x110a08 });
+        const floorMat = new THREE.MeshStandardMaterial({ color: 0x2a221e, roughness: 0.95, emissive: 0x0a0604 });
+        const ceilMat = new THREE.MeshStandardMaterial({ color: 0x1a1512, roughness: 1.0 });
+        const woodMat = new THREE.MeshStandardMaterial({ color: 0x4a3426, roughness: 0.8, emissive: 0x110a06 });
+        const keyMat = new THREE.MeshStandardMaterial({ color: 0xffaa00, emissive: 0x553300, roughness: 0.3, metalness: 0.9 });
+        const doorMat = new THREE.MeshStandardMaterial({ color: 0x2a1a0a, roughness: 0.7, emissive: 0x0a0500 });
+
+        // ============ 房间 ============
+        const roomSize = 28;
+        const wallHeight = 6;
+        const wallThickness = 0.3;
+
+        const floor = new THREE.Mesh(new THREE.BoxGeometry(roomSize, 0.2, roomSize), floorMat);
+        floor.position.set(0, -0.1, 0);
+        floor.receiveShadow = true;
+        scene.add(floor);
+
+        const ceil = new THREE.Mesh(new THREE.BoxGeometry(roomSize, 0.1, roomSize), ceilMat);
+        ceil.position.set(0, wallHeight, 0);
+        scene.add(ceil);
+
+        const leftWall = new THREE.Mesh(new THREE.BoxGeometry(wallThickness, wallHeight, roomSize), wallMat);
+        leftWall.position.set(-roomSize/2, wallHeight/2, 0);
+        leftWall.castShadow = true; leftWall.receiveShadow = true;
+        scene.add(leftWall);
+
+        const rightWall = new THREE.Mesh(new THREE.BoxGeometry(wallThickness, wallHeight, roomSize), wallMat);
+        rightWall.position.set(roomSize/2, wallHeight/2, 0);
+        rightWall.castShadow = true; rightWall.receiveShadow = true;
+        scene.add(rightWall);
+
+        const backWall = new THREE.Mesh(new THREE.BoxGeometry(roomSize, wallHeight, wallThickness), wallMat);
+        backWall.position.set(0, wallHeight/2, roomSize/2);
+        backWall.castShadow = true; backWall.receiveShadow = true;
+        scene.add(backWall);
+
+        const frontWallLeft = new THREE.Mesh(new THREE.BoxGeometry(12.4, wallHeight, wallThickness), wallMat);
+        frontWallLeft.position.set(-7.8, wallHeight/2, -roomSize/2);
+        frontWallLeft.castShadow = true;
+        scene.add(frontWallLeft);
+
+        const frontWallRight = new THREE.Mesh(new THREE.BoxGeometry(12.4, wallHeight, wallThickness), wallMat);
+        frontWallRight.position.set(7.8, wallHeight/2, -roomSize/2);
+        frontWallRight.castShadow = true;
+        scene.add(frontWallRight);
+
+        const frontWallTop = new THREE.Mesh(new THREE.BoxGeometry(3.2, 1.5, wallThickness), wallMat);
+        frontWallTop.position.set(0, wallHeight - 0.75, -roomSize/2);
+        frontWallTop.castShadow = true;
+        scene.add(frontWallTop);
+
+        // ============ 门 ============
+        const DOOR_X = 0;
+        const DOOR_Z = -roomSize/2 - 0.1;
+
+        const doorGroup = new THREE.Group();
+        const doorWidth = 2.8, doorHeight = 4.2;
+        const doorMesh = new THREE.Mesh(new THREE.BoxGeometry(doorWidth, doorHeight, 0.2), doorMat);
+        doorMesh.position.set(0, doorHeight/2, 0);
+        doorMesh.castShadow = true;
+        doorGroup.add(doorMesh);
+
+        const knob = new THREE.Mesh(
+            new THREE.SphereGeometry(0.14, 16, 16),
+            new THREE.MeshStandardMaterial({ color: 0xbbaa88, metalness: 0.9, roughness: 0.2 })
+        );
+        knob.position.set(1.0, 2.2, 0.15);
+        doorGroup.add(knob);
+
+        const frameMat = new THREE.MeshStandardMaterial({ color: 0x5a4a3a });
+        const fl = new THREE.Mesh(new THREE.BoxGeometry(0.2, doorHeight+0.4, 0.3), frameMat);
+        fl.position.set(-doorWidth/2-0.1, doorHeight/2, 0.1); doorGroup.add(fl);
+        const fr = new THREE.Mesh(new THREE.BoxGeometry(0.2, doorHeight+0.4, 0.3), frameMat);
+        fr.position.set(doorWidth/2+0.1, doorHeight/2, 0.1); doorGroup.add(fr);
+        const ft = new THREE.Mesh(new THREE.BoxGeometry(doorWidth+0.4, 0.2, 0.3), frameMat);
+        ft.position.set(0, doorHeight+0.1, 0.1); doorGroup.add(ft);
+
+        doorGroup.position.set(DOOR_X, 0, DOOR_Z);
+        scene.add(doorGroup);
+
+        const exitLight = new THREE.PointLight(0xaaffaa, 0, 20);
+        exitLight.position.set(DOOR_X, 2, DOOR_Z - 2);
+        scene.add(exitLight);
+
+        // ============ 钥匙 ============
+        const KEY_POS = new THREE.Vector3(-10, 1.2, 10);
+
+        const keyGroup = new THREE.Group();
+        const keyRing = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.05, 8, 20), keyMat);
+        keyRing.rotation.x = Math.PI/2; keyRing.position.y = 0.1;
+        keyGroup.add(keyRing);
+        const keyShaft = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.5, 0.08), keyMat);
+        keyShaft.position.y = -0.2; keyGroup.add(keyShaft);
+        const t1 = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.06, 0.06), keyMat);
+        t1.position.set(0.1, -0.35, 0); keyGroup.add(t1);
+        const t2 = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.06, 0.06), keyMat);
+        t2.position.set(0.1, -0.5, 0); keyGroup.add(t2);
+        keyGroup.position.copy(KEY_POS);
+        keyGroup.scale.set(1.2, 1.2, 1.2);
+        scene.add(keyGroup);
+
+        const keyLight = new THREE.PointLight(0xffaa00, 0.8, 7);
+        keyLight.position.copy(KEY_POS);
+        scene.add(keyLight);
+
+        const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.6, 0.3, 8), woodMat);
+        pedestal.position.set(KEY_POS.x, 0.15, KEY_POS.z);
+        pedestal.castShadow = true; pedestal.receiveShadow = true;
+        scene.add(pedestal);
+
+        // ============ 家具 ============
+        const legGeo = new THREE.BoxGeometry(0.15, 1.0, 0.15);
+        const legMat = new THREE.MeshStandardMaterial({ color: 0x2a1a0a });
+
+        // 桌子 1
+        const table1 = new THREE.Group();
+        const top1 = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.15, 1.2), woodMat);
+        top1.position.y = 1.0; top1.castShadow = true; top1.receiveShadow = true;
+        table1.add(top1);
+        for (let i = 0; i < 4; i++) {
+            const leg = new THREE.Mesh(legGeo, legMat);
+            leg.position.set(i<2?-0.75:0.75, 0.5, (i%2===0)?-0.45:0.45);
+            leg.castShadow = true; leg.receiveShadow = true;
+            table1.add(leg);
+        }
+        table1.position.set(-8, 0, -6);
+        scene.add(table1);
+
+        // 桌子 2
+        const table2 = new THREE.Group();
+        const top2 = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.15, 1.2), woodMat);
+        top2.position.y = 1.0; top2.castShadow = true; top2.receiveShadow = true;
+        table2.add(top2);
+        for (let i = 0; i < 4; i++) {
+            const leg = new THREE.Mesh(legGeo, legMat);
+            leg.position.set(i<2?-0.75:0.75, 0.5, (i%2===0)?-0.45:0.45);
+            leg.castShadow = true; leg.receiveShadow = true;
+            table2.add(leg);
+        }
+        table2.position.set(9, 0, 7);
+        scene.add(table2);
+
+        // 椅子 1
+        const chair1 = new THREE.Group();
+        const seat1 = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.15, 0.9), woodMat);
+        seat1.position.y = 0.6; seat1.castShadow = true; seat1.receiveShadow = true;
+        chair1.add(seat1);
+        const back1 = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.0, 0.12), woodMat);
+        back1.position.set(0, 1.1, -0.4); back1.castShadow = true; back1.receiveShadow = true;
+        chair1.add(back1);
+        for (let i = 0; i < 4; i++) {
+            const leg = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.6, 0.1), legMat);
+            leg.position.set((i%2===0?-0.35:0.35), 0.3, (i<2?-0.35:0.35));
+            leg.castShadow = true; leg.receiveShadow = true;
+            chair1.add(leg);
+        }
+        chair1.position.set(-2, 0, 6);
+        scene.add(chair1);
+
+        const chair2 = chair1.clone();
+        chair2.position.set(5, 0, -8);
+        chair2.rotation.y = Math.PI / 3;
+        scene.add(chair2);
+
+        const chair3 = chair1.clone();
+        chair3.position.set(-6, 0, 4);
+        chair3.rotation.y = -Math.PI / 4;
+        scene.add(chair3);
+
+        // 柜子 1
+        const cabinet1 = new THREE.Mesh(new THREE.BoxGeometry(1.4, 2.0, 0.8), woodMat);
+        cabinet1.position.set(11, 1.0, -9);
+        cabinet1.castShadow = true; cabinet1.receiveShadow = true;
+        scene.add(cabinet1);
+
+        // 柜子 2
+        const cabinet2 = new THREE.Mesh(new THREE.BoxGeometry(1.4, 2.0, 0.8), woodMat);
+        cabinet2.position.set(-11, 1.0, -8);
+        cabinet2.rotation.y = Math.PI / 2;
+        cabinet2.castShadow = true; cabinet2.receiveShadow = true;
+        scene.add(cabinet2);
+
+        // 箱子堆
+        const crateMat = new THREE.MeshStandardMaterial({ color: 0x5a4030, roughness: 0.9 });
+        const crate1 = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.0, 1.0), crateMat);
+        crate1.position.set(8, 0.5, 10);
+        crate1.castShadow = true; crate1.receiveShadow = true;
+        scene.add(crate1);
+        const crate2 = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.0, 1.0), crateMat);
+        crate2.position.set(8, 1.5, 10);
+        crate2.castShadow = true; crate2.receiveShadow = true;
+        scene.add(crate2);
+        const crate3 = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.0, 1.0), crateMat);
+        crate3.position.set(-9, 0.5, 9);
+        crate3.castShadow = true; crate3.receiveShadow = true;
+        scene.add(crate3);
+
+        const carpetMat = new THREE.MeshStandardMaterial({ color: 0x4a2a2a, roughness: 1.0, emissive: 0x1a0808 });
+        const carpet = new THREE.Mesh(new THREE.BoxGeometry(8, 0.02, 5), carpetMat);
+        carpet.position.set(0, 0.02, 2);
+        carpet.receiveShadow = true;
+        scene.add(carpet);
+
+        const pillarMat = new THREE.MeshStandardMaterial({ color: 0x4a3a30, roughness: 0.9 });
+        const pillarGeo = new THREE.CylinderGeometry(0.4, 0.4, wallHeight, 12);
+        const pillar1 = new THREE.Mesh(pillarGeo, pillarMat);
+        pillar1.position.set(-6, wallHeight/2, -6);
+        pillar1.castShadow = true; pillar1.receiveShadow = true;
+        scene.add(pillar1);
+        const pillar2 = new THREE.Mesh(pillarGeo, pillarMat);
+        pillar2.position.set(6, wallHeight/2, 6);
+        pillar2.castShadow = true; pillar2.receiveShadow = true;
+        scene.add(pillar2);
+
+        // ============ 奶奶 ============
+        const GRANNY_START = new THREE.Vector3(12, 0, -12);
+
+        const grannyGroup = new THREE.Group();
+        const body = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.45, 0.5, 1.4, 8),
+            new THREE.MeshStandardMaterial({ color: 0x3a3a4a, roughness: 0.9 })
+        );
+        body.position.y = 0.9; body.castShadow = true; body.receiveShadow = true;
+        grannyGroup.add(body);
+
+        const head = new THREE.Mesh(
+            new THREE.SphereGeometry(0.32, 12, 12),
+            new THREE.MeshStandardMaterial({ color: 0x8a7a6a, roughness: 0.8 })
+        );
+        head.position.y = 1.75; head.castShadow = true; head.receiveShadow = true;
+        grannyGroup.add(head);
+
+        const eyeMat = new THREE.MeshStandardMaterial({ color: 0xff0000, emissive: 0x550000 });
+        const eyeGeo = new THREE.SphereGeometry(0.06, 8, 8);
+        const eL = new THREE.Mesh(eyeGeo, eyeMat); eL.position.set(-0.12, 1.82, 0.28); grannyGroup.add(eL);
+        const eR = new THREE.Mesh(eyeGeo, eyeMat); eR.position.set(0.12, 1.82, 0.28); grannyGroup.add(eR);
+
+        const armGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.9, 6);
+        const armMat = new THREE.MeshStandardMaterial({ color: 0x3a3a4a });
+        const aL = new THREE.Mesh(armGeo, armMat); aL.position.set(-0.55, 1.2, 0); aL.rotation.z = 0.3; aL.castShadow = true; grannyGroup.add(aL);
+        const aR = new THREE.Mesh(armGeo, armMat); aR.position.set(0.55, 1.2, 0); aR.rotation.z = -0.3; aR.castShadow = true; grannyGroup.add(aR);
+
+        grannyGroup.position.copy(GRANNY_START);
+        grannyGroup.scale.set(1.1, 1.1, 1.1);
+        scene.add(grannyGroup);
+
+        const grannyLight = new THREE.PointLight(0xff0000, 0.4, 6);
+        scene.add(grannyLight);
+
+        // ============ 碰撞体（AABB 矩形） ============
+        // 格式：{ minX, maxX, minZ, maxZ }  （只考虑XZ平面）
+        // 每个障碍物精确贴合它的模型尺寸
+        const obstacles = [
+            // 桌子1 (1.8 x 1.2) 位置 (-8, -6)
+            { minX: -8.9, maxX: -7.1, minZ: -6.6, maxZ: -5.4 },
+            // 桌子2 (1.8 x 1.2) 位置 (9, 7)
+            { minX: 8.1, maxX: 9.9, minZ: 6.4, maxZ: 7.6 },
+            // 椅子1 (0.9 x 0.9) 位置 (-2, 6)
+            { minX: -2.45, maxX: -1.55, minZ: 5.55, maxZ: 6.45 },
+            // 椅子2 (旋转后近似 1.0 x 1.0) 位置 (5, -8)
+            { minX: 4.5, maxX: 5.5, minZ: -8.5, maxZ: -7.5 },
+            // 椅子3 (旋转后近似 1.0 x 1.0) 位置 (-6, 4)
+            { minX: -6.5, maxX: -5.5, minZ: 3.5, maxZ: 4.5 },
+            // 柜子1 (1.4 x 0.8) 位置 (11, -9)
+            { minX: 10.3, maxX: 11.7, minZ: -9.4, maxZ: -8.6 },
+            // 柜子2 (旋转90度后 0.8 x 1.4) 位置 (-11, -8)
+            { minX: -11.4, maxX: -10.6, minZ: -8.7, maxZ: -7.3 },
+            // 箱子堆 (1.0 x 1.0) 位置 (8, 10) —— 只算底部那个
+            { minX: 7.5, maxX: 8.5, minZ: 9.5, maxZ: 10.5 },
+            // 箱子3 (1.0 x 1.0) 位置 (-9, 9)
+            { minX: -9.5, maxX: -8.5, minZ: 8.5, maxZ: 9.5 },
+            // 柱子1 (半径0.4) 位置 (-6, -6) —— 用近似方形
+            { minX: -6.4, maxX: -5.6, minZ: -6.4, maxZ: -5.6 },
+            // 柱子2 (半径0.4) 位置 (6, 6)
+            { minX: 5.6, maxX: 6.4, minZ: 5.6, maxZ: 6.4 },
+            // 钥匙台 (半径0.6) 位置 (-10, 10)
+            { minX: -10.6, maxX: -9.4, minZ: 9.4, maxZ: 10.6 },
+        ];
+
+        // ============ 游戏状态 ============
+        const state = {
+            hasKey: false,
+            gameActive: false,
+            gameWin: false,
+            playerCaught: false,
+            grannySpeed: 1.6,
+            playerSpeed: 4.5,
+            grannyAlert: 0,
+            lastGrowlTime: 0,
+        };
+
+        // 玩家垂直运动（跳跃）
+        const playerVertical = {
+            velocityY: 0,
+            isJumping: false,
+            groundY: 1.7,
+            gravity: -22,
+            jumpPower: 7.5,
+        };
+
+        // ============ 触屏控制 ============
+        const joystick = document.getElementById('joystick');
+        const joystickKnob = document.getElementById('joystick-knob');
+        const actionBtn = document.getElementById('action-btn');
+        const jumpBtn = document.getElementById('jump-btn');
+        const muteBtn = document.getElementById('mute-btn');
+
+        let joyTouchId = null;
+        let joyCenter = { x: 0, y: 0 };
+        const joyMaxDist = 50;
+        const joyVec = { x: 0, y: 0 };
+
+        let lookTouchId = null;
+        let lastLook = { x: 0, y: 0 };
+        let yaw = 0, pitch = 0;
+        const lookSensitivity = 0.005;
+
+        joystick.addEventListener('touchstart', (e) => {
+            e.preventDefault(); e.stopPropagation();
+            if (joyTouchId !== null) return;
+            const touch = e.changedTouches[0];
+            joyTouchId = touch.identifier;
+            const rect = joystick.getBoundingClientRect();
+            joyCenter.x = rect.left + rect.width/2;
+            joyCenter.y = rect.top + rect.height/2;
+            updateJoy(touch);
+        }, { passive: false });
+
+        joystick.addEventListener('touchmove', (e) => {
+            e.preventDefault(); e.stopPropagation();
+            if (joyTouchId === null) return;
+            for (const touch of e.changedTouches) {
+                if (touch.identifier === joyTouchId) { updateJoy(touch); break; }
+            }
+        }, { passive: false });
+
+        function endJoy(e) {
+            if (joyTouchId === null) return;
+            for (const touch of e.changedTouches) {
+                if (touch.identifier === joyTouchId) {
+                    joyTouchId = null;
+                    joyVec.x = 0; joyVec.y = 0;
+                    joystickKnob.style.transform = 'translate(-50%, -50%)';
+                    break;
+                }
+            }
+        }
+        joystick.addEventListener('touchend', endJoy, { passive: false });
+        joystick.addEventListener('touchcancel', endJoy, { passive: false });
+
+        function updateJoy(touch) {
+            let dx = touch.clientX - joyCenter.x;
+            let dy = touch.clientY - joyCenter.y;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            if (dist > joyMaxDist) {
+                dx = dx / dist * joyMaxDist;
+                dy = dy / dist * joyMaxDist;
+            }
+            joystickKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+            joyVec.x = dx / joyMaxDist;
+            joyVec.y = dy / joyMaxDist;
+        }
+
+        const canvas = renderer.domElement;
+
+        canvas.addEventListener('touchstart', (e) => {
+            for (const touch of e.changedTouches) {
+                const jr = joystick.getBoundingClientRect();
+                if (touch.clientX >= jr.left && touch.clientX <= jr.right &&
+                    touch.clientY >= jr.top && touch.clientY <= jr.bottom) continue;
+                const ab = actionBtn.getBoundingClientRect();
+                if (touch.clientX >= ab.left && touch.clientX <= ab.right &&
+                    touch.clientY >= ab.top && touch.clientY <= ab.bottom) continue;
+                const jb = jumpBtn.getBoundingClientRect();
+                if (touch.clientX >= jb.left && touch.clientX <= jb.right &&
+                    touch.clientY >= jb.top && touch.clientY <= jb.bottom) continue;
+                const mb = muteBtn.getBoundingClientRect();
+                if (touch.clientX >= mb.left && touch.clientX <= mb.right &&
+                    touch.clientY >= mb.top && touch.clientY <= mb.bottom) continue;
+
+                if (lookTouchId === null) {
+                    lookTouchId = touch.identifier;
+                    lastLook.x = touch.clientX;
+                    lastLook.y = touch.clientY;
+                }
+            }
+        }, { passive: false });
+
+        canvas.addEventListener('touchmove', (e) => {
+            if (lookTouchId === null) return;
+            e.preventDefault();
+            for (const touch of e.changedTouches) {
+                if (touch.identifier === lookTouchId) {
+                    const dx = touch.clientX - lastLook.x;
+                    const dy = touch.clientY - lastLook.y;
+                    lastLook.x = touch.clientX;
+                    lastLook.y = touch.clientY;
+                    yaw -= dx * lookSensitivity;
+                    pitch -= dy * lookSensitivity;
+                    pitch = Math.max(-Math.PI/2 + 0.1, Math.min(Math.PI/2 - 0.1, pitch));
+                    break;
+                }
+            }
+        }, { passive: false });
+
+        function endLook(e) {
+            if (lookTouchId === null) return;
+            for (const touch of e.changedTouches) {
+                if (touch.identifier === lookTouchId) { lookTouchId = null; break; }
+            }
+        }
+        canvas.addEventListener('touchend', endLook, { passive: false });
+        canvas.addEventListener('touchcancel', endLook, { passive: false });
+
+        actionBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault(); e.stopPropagation();
+            tryUseKey();
+        }, { passive: false });
+
+        // 跳跃按钮
+        jumpBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault(); e.stopPropagation();
+            tryJump();
+        }, { passive: false });
+
+        muteBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault(); e.stopPropagation();
+            const m = AudioEngine.toggleMute();
+            muteBtn.innerText = m ? '🔇' : '🔊';
+            muteBtn.classList.toggle('muted', m);
+        }, { passive: false });
+        muteBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const m = AudioEngine.toggleMute();
+            muteBtn.innerText = m ? '🔇' : '🔊';
+            muteBtn.classList.toggle('muted', m);
+        });
+
+        function tryJump() {
+            if (!state.gameActive || state.gameWin || state.playerCaught) return;
+            if (playerVertical.isJumping) return;
+            playerVertical.isJumping = true;
+            playerVertical.velocityY = playerVertical.jumpPower;
+            AudioEngine.jump();
+        }
+
+        // ============ 开始 / 重置 ============
+        function startGame() {
+            AudioEngine.init();
+            AudioEngine.resume();
+            AudioEngine.fadeAmbient(0.5, 2.0);
+            document.getElementById('start-screen').style.display = 'none';
+            state.gameActive = true;
+        }
+
+        function resetGame() {
+            document.getElementById('win-message').style.display = 'none';
+            document.getElementById('warning').style.display = 'none';
+            document.getElementById('granny-growl').style.display = 'none';
+
+            state.hasKey = false;
+            state.gameActive = false;
+            state.gameWin = false;
+            state.playerCaught = false;
+            state.grannyAlert = 0;
+            state.lastGrowlTime = 0;
+
+            camera.position.set(0, 1.7, 10);
+            yaw = 0;
+            pitch = 0;
+
+            playerVertical.velocityY = 0;
+            playerVertical.isJumping = false;
+
+            joyVec.x = 0; joyVec.y = 0;
+            joystickKnob.style.transform = 'translate(-50%, -50%)';
+            joyTouchId = null;
+            lookTouchId = null;
+
+            keyGroup.visible = true;
+            keyLight.visible = true;
+            keyGroup.position.copy(KEY_POS);
+            keyGroup.rotation.set(0, 0, 0);
+
+            doorGroup.rotation.y = 0;
+            exitLight.intensity = 0;
+
+            grannyGroup.position.copy(GRANNY_START);
+
+            document.getElementById('key-hint').innerText = '🔑 未找到钥匙';
+            document.getElementById('key-hint').classList.remove('found');
+            document.getElementById('distance-hint').innerText = '🚪 大门: 远';
+
+            AudioEngine.reset();
+            AudioEngine.fadeAmbient(0.5, 1.0);
+
+            document.getElementById('start-screen').style.display = 'flex';
+        }
+
+        document.getElementById('start-btn').addEventListener('click', startGame);
+
+        // ============ 游戏逻辑 ============
+        function tryUseKey() {
+            if (!state.gameActive || state.gameWin || state.playerCaught) return;
+
+            const keyPos = keyGroup.position;
+            const distToKey = camera.position.distanceTo(keyPos);
+            if (!state.hasKey && distToKey < 2.0) {
+                state.hasKey = true;
+                keyGroup.visible = false;
+                keyLight.visible = false;
+                document.getElementById('key-hint').innerText = '🔑 已找到钥匙！去大门';
+                document.getElementById('key-hint').classList.add('found');
+                AudioEngine.keyPickup();
+                return;
+            }
+
+            const doorPos = new THREE.Vector3(DOOR_X, 1.7, DOOR_Z + 0.5);
+            const distToDoor = camera.position.distanceTo(doorPos);
+            if (distToDoor < 3.5) {
+                if (state.hasKey) {
+                    state.gameWin = true;
+                    document.getElementById('win-message').style.display = 'block';
+                    document.getElementById('warning').style.display = 'none';
+                    document.getElementById('granny-growl').style.display = 'none';
+                    exitLight.intensity = 3.0;
+                    doorGroup.rotation.y = -0.5;
+                    AudioEngine.win();
+                    AudioEngine.fadeAmbient(0.15, 1.5);
+                    setTimeout(() => { resetGame(); }, 2500);
+                } else {
+                    document.getElementById('key-hint').innerText = '🔑 需要钥匙！';
+                    AudioEngine.fail();
+                    setTimeout(() => {
+                        if (!state.hasKey) document.getElementById('key-hint').innerText = '🔑 未找到钥匙';
+                    }, 1500);
+                }
+            } else {
+                document.getElementById('distance-hint').innerText = '🚪 离门太远';
+                AudioEngine.fail();
+                setTimeout(updateDistanceHint, 1500);
+            }
+        }
+
+        function updateDistanceHint() {
+            if (state.gameWin) return;
+            const doorPos = new THREE.Vector3(DOOR_X, 1.7, DOOR_Z + 0.5);
+            const dist = camera.position.distanceTo(doorPos);
+            const el = document.getElementById('distance-hint');
+            if (dist < 3.5) el.innerText = '🚪 大门: 就在眼前';
+            else if (dist < 12) el.innerText = '🚪 大门: 近';
+            else el.innerText = '🚪 大门: 远';
+        }
+
+        // 精确的 AABB 碰撞检测
+        function checkCollision(newPos) {
+            const margin = 0.35; // 玩家半径
+            // 墙壁
+            if (newPos.x < -roomSize/2 + margin || newPos.x > roomSize/2 - margin ||
+                newPos.z < -roomSize/2 + margin || newPos.z > roomSize/2 - margin) return true;
+
+            // 障碍物：玩家圆形 vs 家具矩形
+            for (const obs of obstacles) {
+                // 找到矩形上离玩家最近的点
+                const closestX = Math.max(obs.minX, Math.min(newPos.x, obs.maxX));
+                const closestZ = Math.max(obs.minZ, Math.min(newPos.z, obs.maxZ));
+                const dx = newPos.x - closestX;
+                const dz = newPos.z - closestZ;
+                if (dx*dx + dz*dz < margin * margin) return true;
+            }
+            return false;
+        }
+
+        function updateGranny(delta, time) {
+            if (!state.gameActive || state.gameWin || state.playerCaught) return;
+            const playerPos = camera.position;
+            const grannyPos = grannyGroup.position;
+            const dx = playerPos.x - grannyPos.x;
+            const dz = playerPos.z - grannyPos.z;
+            const dist = Math.sqrt(dx*dx + dz*dz);
+
+            if (dist < 6) state.grannyAlert = Math.min(1, state.grannyAlert + delta * 1.5);
+            else if (dist < 14) state.grannyAlert = Math.min(1, state.grannyAlert + delta * 0.6);
+            else state.grannyAlert = Math.max(0, state.grannyAlert - delta * 0.25);
+
+            const moving = Math.abs(joyVec.x) > 0.1 || Math.abs(joyVec.y) > 0.1;
+            if (moving) state.grannyAlert = Math.min(1, state.grannyAlert + delta * 0.15);
+
+            const warningEl = document.getElementById('warning');
+            const growlEl = document.getElementById('granny-growl');
+            const alerted = state.grannyAlert > 0.6 && dist < 12;
+            if (alerted) {
+                warningEl.style.display = 'block';
+                growlEl.style.display = 'block';
+                if (time - state.lastGrowlTime > 2.5) {
+                    AudioEngine.grannyGrowl();
+                    state.lastGrowlTime = time;
+                }
+            } else {
+                warningEl.style.display = 'none';
+                growlEl.style.display = 'none';
+            }
+
+            if (dist > 1.4) {
+                const speed = state.grannySpeed * (0.6 + state.grannyAlert * 0.9) * delta;
+                const newPos = grannyPos.clone();
+                newPos.x += (dx / dist) * speed;
+                newPos.z += (dz / dist) * speed;
+                newPos.x = Math.max(-roomSize/2 + 0.7, Math.min(roomSize/2 - 0.7, newPos.x));
+                newPos.z = Math.max(-roomSize/2 + 0.7, Math.min(roomSize/2 - 0.7, newPos.z));
+                grannyGroup.position.copy(newPos);
+            }
+
+            grannyGroup.lookAt(playerPos.x, grannyGroup.position.y, playerPos.z);
+            grannyLight.position.copy(grannyGroup.position);
+            grannyLight.position.y += 1.5;
+
+            if (dist < 1.2) {
+                state.playerCaught = true;
+                state.gameActive = false;
+                document.getElementById('warning').style.display = 'block';
+                document.getElementById('warning').innerText = '💀 奶奶抓住你了 💀';
+                document.getElementById('granny-growl').style.display = 'none';
+                AudioEngine.caught();
+                AudioEngine.fadeAmbient(0.0, 0.8);
+                setTimeout(() => { resetGame(); }, 2500);
+            }
+        }
+
+        // ============ 主循环 ============
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = Math.min(clock.getDelta(), 0.1);
+            const time = performance.now() * 0.001;
+
+            flickerLight.intensity = 0.3 + Math.sin(time*15)*0.15 + Math.sin(time*7)*0.1;
+
+            if (!state.hasKey && state.gameActive) {
+                keyGroup.rotation.y += delta * 1.5;
+                keyGroup.position.y = KEY_POS.y + Math.sin(time*2) * 0.15;
+                keyLight.position.copy(keyGroup.position);
+            }
+
+            updateGranny(delta, time);
+            updateDistanceHint();
+
+            let isMoving = false;
+
+            if (state.gameActive && !state.gameWin && !state.playerCaught) {
+                // 水平移动
+                const speed = state.playerSpeed * delta;
+                const forward = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
+                const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+
+                const moveDelta = new THREE.Vector3();
+                moveDelta.addScaledVector(forward, -joyVec.y);
+                moveDelta.addScaledVector(right, joyVec.x);
+
+                if (moveDelta.length() > 0.01) {
+                    isMoving = true;
+                    moveDelta.normalize().multiplyScalar(speed);
+                    const newPos = camera.position.clone().add(moveDelta);
+                    if (!checkCollision(newPos)) {
+                        camera.position.copy(newPos);
+                    } else {
+                        const tryX = camera.position.clone().add(new THREE.Vector3(moveDelta.x, 0, 0));
+                        if (!checkCollision(tryX)) camera.position.copy(tryX);
+                        else {
+                            const tryZ = camera.position.clone().add(new THREE.Vector3(0, 0, moveDelta.z));
+                            if (!checkCollision(tryZ)) camera.position.copy(tryZ);
+                        }
+                    }
+                }
+                camera.position.x = Math.max(-roomSize/2+0.5, Math.min(roomSize/2-0.5, camera.position.x));
+                camera.position.z = Math.max(-roomSize/2+0.5, Math.min(roomSize/2-0.5, camera.position.z));
+
+                // 垂直运动（跳跃）
+                if (playerVertical.isJumping) {
+                    playerVertical.velocityY += playerVertical.gravity * delta;
+                    camera.position.y += playerVertical.velocityY * delta;
+
+                    // 落地检测
+                    if (camera.position.y <= playerVertical.groundY) {
+                        camera.position.y = playerVertical.groundY;
+                        playerVertical.velocityY = 0;
+                        playerVertical.isJumping = false;
+                        AudioEngine.land();
+                    }
+                } else {
+                    camera.position.y = playerVertical.groundY;
+                }
+
+                // 只在落地时播放脚步声
+                AudioEngine.tryFootstep(delta, isMoving && !playerVertical.isJumping);
+            } else {
+                AudioEngine.tryFootstep(delta, false);
+                // 确保Y坐标正确（重置或暂停时）
+                if (!playerVertical.isJumping) {
+                    camera.position.y = playerVertical.groundY;
+                }
+            }
+
+            camera.rotation.order = 'YXZ';
+            camera.rotation.y = yaw;
+            camera.rotation.x = pitch;
+
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        document.body.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+        }, { passive: false });
+    </script>
+</body>
+</html>
